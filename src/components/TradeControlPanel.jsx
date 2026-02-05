@@ -4,54 +4,57 @@ import { useTradeActions } from '../hooks/useTradeActions';
 export function TradeControlPanel() {
   const { isLoading, lastActionStatus, handleActionClick } = useTradeActions();
 
-  // Reusable Button Component internal to this file
+  // Botão menor e mais compacto para caber na barra superior
   const TradeButton = ({ label, colorClass, onClick }) => (
     <button
       onClick={onClick}
       disabled={isLoading}
-      className={`${colorClass} text-white font-bold py-4 px-6 rounded-xl shadow-lg 
-                  transform transition-all duration-150 active:scale-95 hover:brightness-110
-                  disabled:opacity-50 disabled:cursor-not-allowed w-full md:w-48 tracking-wider`}
+      className={`${colorClass} text-white font-bold py-2 px-4 rounded-lg shadow-md 
+                  text-sm transform transition-all duration-150 active:scale-95 hover:brightness-110
+                  disabled:opacity-50 disabled:cursor-not-allowed tracking-wide whitespace-nowrap`}
     >
       {label}
     </button>
   );
 
   return (
-    <div className="bg-slate-800 p-8 rounded-3xl shadow-2xl border border-slate-700 flex flex-col items-center gap-6 relative">
+    // Container flexível horizontal (linha) em vez de coluna
+    <div className="w-full flex flex-col md:flex-row items-center justify-between gap-4">
       
-      <h1 className="text-2xl font-bold text-slate-200 mb-2 tracking-tight">
-        Command Center
-      </h1>
-
-      {/* Feedback Message Area */}
-      <div className={`h-8 text-sm font-medium flex items-center transition-all duration-300
-        ${lastActionStatus?.type === 'success' ? 'text-emerald-400' : 
-          lastActionStatus?.type === 'error' ? 'text-rose-400' : 'text-blue-300'}`}>
-        {lastActionStatus ? lastActionStatus.message : (isLoading ? 'Processing...' : 'Ready')}
+      {/* Lado Esquerdo: Título e Status */}
+      <div className="flex items-center gap-4">
+        <h1 className="text-xl font-bold text-slate-800 tracking-tight">
+          Trade<span className="text-blue-600">Bot</span>
+        </h1>
+        
+        {/* Status Message (Pequena pílula ao lado do título) */}
+        <div className={`text-xs font-semibold px-2 py-1 rounded border
+          ${lastActionStatus?.type === 'success' ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 
+            lastActionStatus?.type === 'error' ? 'bg-rose-100 text-rose-700 border-rose-200' : 'bg-slate-100 text-slate-600 border-slate-200'}`}>
+          {lastActionStatus ? lastActionStatus.message : (isLoading ? 'Processing...' : 'Ready')}
+        </div>
       </div>
-      
-      {/* Grid for Buttons */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full">
+
+      {/* Lado Direito: Botões alinhados horizontalmente */}
+      <div className="flex items-center gap-2">
         <TradeButton 
           label="BUY" 
-          colorClass="bg-emerald-600 shadow-emerald-900/30"
+          colorClass="bg-emerald-600"
           onClick={() => handleActionClick('Buy')}
         />
         <TradeButton 
           label="SELL" 
-          colorClass="bg-rose-600 shadow-rose-900/30"
+          colorClass="bg-rose-600"
           onClick={() => handleActionClick('Sell')}
         />
         <TradeButton 
-          label="SEND TELEGRAM" 
-          colorClass="bg-blue-600 shadow-blue-900/30"
+          label="TELEGRAM" 
+          colorClass="bg-blue-600"
           onClick={() => handleActionClick('Send Telegram')}
         />
-        {/* Changed "Charted" to "CHART" for better English phrasing */}
         <TradeButton 
           label="CHART" 
-          colorClass="bg-slate-600 shadow-slate-900/30"
+          colorClass="bg-slate-600"
           onClick={() => handleActionClick('Chart')}
         />
       </div>
