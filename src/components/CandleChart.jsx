@@ -1,24 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
 
-export function CandleChart() {
+export function CandleChart({ symbol }) {
   const chartContainerRef = useRef();
   const chartRef = useRef(null);
   const [loading, setLoading] = useState(true);
   
-  // Estado para guardar os dados do candle que o mouse está em cima
+  // State to hold data for the tooltip (Open, High, Low, Close)
   const [candleData, setCandleData] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
   useEffect(() => {
+    // Prevent double instantiation in React StrictMode
     if (chartRef.current) return;
 
-    // 1. Configuração do Gráfico
+    // 1. Chart Configuration
     const chart = createChart(chartContainerRef.current, {
       layout: {
-        background: { type: ColorType.Solid, color: '#0f172a' },
-        textColor: '#cbd5e1', // Texto mais claro
+        background: { type: ColorType.Solid, color: '#0f172a' }, // Slate-900
+        textColor: '#cbd5e1',
       },
       grid: {
         vertLines: { color: '#1e293b' },
@@ -26,12 +27,10 @@ export function CandleChart() {
       },
       width: chartContainerRef.current.clientWidth,
       height: chartContainerRef.current.clientHeight,
-      // Configuração da escala de tempo
       timeScale: {
         timeVisible: true,
         secondsVisible: false,
       },
-      // Habilita o crosshair (mira)
       crosshair: {
         mode: 1, // CrosshairMode.Normal
       },
@@ -39,7 +38,7 @@ export function CandleChart() {
 
     chartRef.current = chart;
 
-    // 2. Adiciona a Série com PRECISÃO DE FOREX (5 casas decimais)
+    // 2. Add Series (Forex Precision)
     const newSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#22c55e',
       downColor: '#ef4444',
@@ -48,48 +47,47 @@ export function CandleChart() {
       wickDownColor: '#ef4444',
       priceFormat: {
         type: 'price',
-        precision: 5,     // <--- IMPORTANTE: 5 casas decimais (ex: 1.09345)
-        minMove: 0.00001, // <--- Mínimo movimento do preço
+        precision: 5, // 5 decimal places for Forex
+        minMove: 0.00001,
       },
     });
 
-    // 3. Listener do Mouse (Tooltip)
+    // 3. Mouse/Crosshair Listener for Tooltip
     chart.subscribeCrosshairMove((param) => {
       if (param.time) {
-        // Pega os dados do candle onde o mouse está
         const data = param.seriesData.get(newSeries);
         if (data) {
           setCandleData(data);
         }
-      } else {
-        // Se tirar o mouse, mantém o último ou limpa (opcional)
-        // setCandleData(null); 
       }
     });
 
-    // 4. Busca de Dados
+    // 4. Fetch Data Function
     const fetchData = async () => {
+      setLoading(true); // Show loader when switching symbols
       try {
-        const response = await fetch(`${API_URL}/chart-data`);
+        // Build query string if symbol is provided
+        const query = symbol ? `?symbol=${symbol}` : '';
+        const response = await fetch(`${API_URL}/chart-data${query}`);
         const data = await response.json();
         
         if (data && data.length > 0) {
           newSeries.setData(data);
           chart.timeScale().fitContent();
           
-          // Define o valor inicial como o último candle
+          // Set initial tooltip data to the last candle
           setCandleData(data[data.length - 1]);
         }
-        setLoading(false);
       } catch (error) {
-        console.error("Erro chart:", error);
+        console.error("Chart fetch error:", error);
+      } finally {
         setLoading(false);
       }
     };
 
     fetchData();
 
-    // 5. Responsividade
+    // 5. Handle Resize
     const handleResize = () => {
       if (chartRef.current) {
         chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -97,6 +95,7 @@ export function CandleChart() {
     };
     window.addEventListener('resize', handleResize);
 
+    // Cleanup on unmount
     return () => {
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
@@ -104,15 +103,15 @@ export function CandleChart() {
         chartRef.current = null;
       }
     };
-  }, []);
+  }, [symbol]); // <--- Dependency array: Re-run if 'symbol' changes
 
   return (
     <div className="w-full h-full relative group p-4">
       
-      {/* LEGENDA FLUTUANTE (Tooltip) */}
+      {/* Floating Tooltip */}
       <div className="absolute top-6 left-6 z-20 bg-slate-800/80 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono">
         {!candleData ? (
-          <span className="text-slate-400">Carregando dados...</span>
+          <span className="text-slate-400">Loading data...</span>
         ) : (
           <>
             <div className="flex flex-col">
@@ -133,18 +132,10 @@ export function CandleChart() {
                 {candleData.close?.toFixed(5)}
               </span>
             </div>
-            {/* Opcional: Volume */}
-            {candleData.tick_volume && (
-              <div className="flex flex-col border-l border-slate-600 pl-4">
-                <span className="text-slate-500 uppercase text-[10px]">Vol</span>
-                <span className="text-yellow-400">{candleData.tick_volume}</span>
-              </div>
-            )}
           </>
         )}
       </div>
 
-      {/* O Gráfico em si */}
       <div ref={chartContainerRef} className="w-full h-full rounded-xl overflow-hidden shadow-2xl border border-slate-800" />
       
       {loading && (
