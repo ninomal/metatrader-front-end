@@ -4,18 +4,19 @@ import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
 export function CandleChart({ symbol }) {
   const chartContainerRef = useRef();
   const chartRef = useRef(null);
+  const seriesRef = useRef(null); // Reference to the series to update data later
   const [loading, setLoading] = useState(true);
   
-  // State to hold data for the tooltip (Open, High, Low, Close)
+  // State for the floating tooltip (OHLC data)
   const [candleData, setCandleData] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
+  // 1. Initialize Chart (Runs only once on mount)
   useEffect(() => {
-    // Prevent double instantiation in React StrictMode
     if (chartRef.current) return;
 
-    // 1. Chart Configuration
+    // Create the chart instance
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0f172a' }, // Slate-900
@@ -38,7 +39,7 @@ export function CandleChart({ symbol }) {
 
     chartRef.current = chart;
 
-    // 2. Add Series (Forex Precision)
+    // Add the Candlestick Series
     const newSeries = chart.addSeries(CandlestickSeries, {
       upColor: '#22c55e',
       downColor: '#ef4444',
@@ -47,12 +48,14 @@ export function CandleChart({ symbol }) {
       wickDownColor: '#ef4444',
       priceFormat: {
         type: 'price',
-        precision: 5, // 5 decimal places for Forex
+        precision: 5, // Forex precision (e.g., 1.09345)
         minMove: 0.00001,
       },
     });
+    
+    seriesRef.current = newSeries; // Store reference for the second useEffect
 
-    // 3. Mouse/Crosshair Listener for Tooltip
+    // Subscribe to crosshair movement for the tooltip
     chart.subscribeCrosshairMove((param) => {
       if (param.time) {
         const data = param.seriesData.get(newSeries);
@@ -62,32 +65,7 @@ export function CandleChart({ symbol }) {
       }
     });
 
-    // 4. Fetch Data Function
-    const fetchData = async () => {
-      setLoading(true); // Show loader when switching symbols
-      try {
-        // Build query string if symbol is provided
-        const query = symbol ? `?symbol=${symbol}` : '';
-        const response = await fetch(`${API_URL}/chart-data${query}`);
-        const data = await response.json();
-        
-        if (data && data.length > 0) {
-          newSeries.setData(data);
-          chart.timeScale().fitContent();
-          
-          // Set initial tooltip data to the last candle
-          setCandleData(data[data.length - 1]);
-        }
-      } catch (error) {
-        console.error("Chart fetch error:", error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-
-    // 5. Handle Resize
+    // Handle Window Resize
     const handleResize = () => {
       if (chartRef.current) {
         chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -95,7 +73,6 @@ export function CandleChart({ symbol }) {
     };
     window.addEventListener('resize', handleResize);
 
-    // Cleanup on unmount
     return () => {
       window.removeEventListener('resize', handleResize);
       if (chartRef.current) {
@@ -103,15 +80,51 @@ export function CandleChart({ symbol }) {
         chartRef.current = null;
       }
     };
-  }, [symbol]); // <--- Dependency array: Re-run if 'symbol' changes
+  }, []);
+
+  // 2. Fetch Data (Runs every time 'symbol' changes)
+  useEffect(() => {
+    if (!seriesRef.current) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      
+      // Clear old data immediately to show loading state visually
+      seriesRef.current.setData([]); 
+      setCandleData(null);
+
+      try {
+        const query = symbol ? `?symbol=${symbol}` : '';
+        const response = await fetch(`${API_URL}/chart-data${query}`);
+        const data = await response.json();
+        
+        if (data && data.length > 0) {
+          seriesRef.current.setData(data);
+          chartRef.current.timeScale().fitContent(); // Auto-zoom to data
+          
+          // Set initial tooltip to the last candle
+          setCandleData(data[data.length - 1]);
+        } else {
+          console.warn(`No data found for symbol: ${symbol}`);
+        }
+      } catch (error) {
+        console.error("Error fetching chart data:", error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+
+  }, [symbol]); // <--- Dependency: Re-run this effect when 'symbol' prop changes
 
   return (
     <div className="w-full h-full relative group p-4">
       
-      {/* Floating Tooltip */}
-      <div className="absolute top-6 left-6 z-20 bg-slate-800/80 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono">
+      {/* Floating Tooltip (OHLC) */}
+      <div className="absolute top-6 left-6 z-20 bg-slate-800/80 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
         {!candleData ? (
-          <span className="text-slate-400">Loading data...</span>
+          <span className="text-slate-400 my-auto">{loading ? `Loading ${symbol}...` : "No Data"}</span>
         ) : (
           <>
             <div className="flex flex-col">
@@ -136,10 +149,12 @@ export function CandleChart({ symbol }) {
         )}
       </div>
 
+      {/* Chart Container */}
       <div ref={chartContainerRef} className="w-full h-full rounded-xl overflow-hidden shadow-2xl border border-slate-800" />
       
+      {/* Loading Overlay */}
       {loading && (
-        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-10">
+        <div className="absolute inset-0 flex items-center justify-center bg-slate-900/50 z-10 backdrop-blur-[1px]">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-cyan-500"></div>
         </div>
       )}
