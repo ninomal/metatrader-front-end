@@ -4,26 +4,24 @@ import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
 export function CandleChart({ symbol }) {
   const chartContainerRef = useRef();
   const chartRef = useRef(null);
-  const seriesRef = useRef(null); // Reference to the series to update data later
+  const seriesRef = useRef(null);
   const [loading, setLoading] = useState(true);
-  
-  // State for the floating tooltip (OHLC data)
   const [candleData, setCandleData] = useState(null);
 
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
-  // 1. Initialize Chart (Runs only once on mount)
+  // 1. Initialize Chart (Runs once)
   useEffect(() => {
     if (chartRef.current) return;
 
-    // Create the chart instance
+    // Create Chart Instance
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0f172a' }, // Slate-900
         textColor: '#cbd5e1',
       },
       grid: {
-        vertLines: { color: '#1e293b' },
+        vertLines: { color: '#1e293b' }, // Slate-800
         horzLines: { color: '#1e293b' },
       },
       width: chartContainerRef.current.clientWidth,
@@ -39,23 +37,22 @@ export function CandleChart({ symbol }) {
 
     chartRef.current = chart;
 
-    // Add the Candlestick Series
+    // 2. Add Candlestick Series
+    // CRITICAL: We enable borders and wicks but DO NOT set upColor/downColor here.
+    // This allows the chart to use the individual colors sent by the Python Backend.
     const newSeries = chart.addSeries(CandlestickSeries, {
-      upColor: '#22c55e',
-      downColor: '#ef4444',
-      borderVisible: false,
-      wickUpColor: '#22c55e',
-      wickDownColor: '#ef4444',
+      borderVisible: true,
+      wickVisible: true,
       priceFormat: {
         type: 'price',
-        precision: 5, // Forex precision (e.g., 1.09345)
+        precision: 5,
         minMove: 0.00001,
       },
     });
     
-    seriesRef.current = newSeries; // Store reference for the second useEffect
+    seriesRef.current = newSeries;
 
-    // Subscribe to crosshair movement for the tooltip
+    // Tooltip Logic
     chart.subscribeCrosshairMove((param) => {
       if (param.time) {
         const data = param.seriesData.get(newSeries);
@@ -65,7 +62,7 @@ export function CandleChart({ symbol }) {
       }
     });
 
-    // Handle Window Resize
+    // Resize Logic
     const handleResize = () => {
       if (chartRef.current) {
         chartRef.current.applyOptions({ width: chartContainerRef.current.clientWidth });
@@ -82,14 +79,13 @@ export function CandleChart({ symbol }) {
     };
   }, []);
 
-  // 2. Fetch Data (Runs every time 'symbol' changes)
+  // 3. Fetch Data (Runs when 'symbol' changes)
   useEffect(() => {
     if (!seriesRef.current) return;
 
     const fetchData = async () => {
       setLoading(true);
-      
-      // Clear old data immediately to show loading state visually
+      // Clear data to give visual feedback of loading
       seriesRef.current.setData([]); 
       setCandleData(null);
 
@@ -98,17 +94,19 @@ export function CandleChart({ symbol }) {
         const response = await fetch(`${API_URL}/chart-data${query}`);
         const data = await response.json();
         
+        // DEBUG: Check console to see if colors are arriving
         if (data && data.length > 0) {
+          console.log(`📊 Loaded ${data.length} candles for ${symbol}`);
+          console.log("🎨 Sample Candle Data:", data[data.length - 1]); 
+
           seriesRef.current.setData(data);
-          chartRef.current.timeScale().fitContent(); // Auto-zoom to data
-          
-          // Set initial tooltip to the last candle
+          chartRef.current.timeScale().fitContent();
           setCandleData(data[data.length - 1]);
         } else {
-          console.warn(`No data found for symbol: ${symbol}`);
+          console.warn(`⚠️ No data found for symbol: ${symbol}`);
         }
       } catch (error) {
-        console.error("Error fetching chart data:", error);
+        console.error("❌ Error fetching chart data:", error);
       } finally {
         setLoading(false);
       }
@@ -116,13 +114,13 @@ export function CandleChart({ symbol }) {
 
     fetchData();
 
-  }, [symbol]); // <--- Dependency: Re-run this effect when 'symbol' prop changes
+  }, [symbol]);
 
   return (
     <div className="w-full h-full relative group p-4">
       
-      {/* Floating Tooltip (OHLC) */}
-      <div className="absolute top-6 left-6 z-20 bg-slate-800/80 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
+      {/* Floating Tooltip */}
+      <div className="absolute top-6 left-6 z-20 bg-slate-800/90 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
         {!candleData ? (
           <span className="text-slate-400 my-auto">{loading ? `Loading ${symbol}...` : "No Data"}</span>
         ) : (
@@ -141,9 +139,14 @@ export function CandleChart({ symbol }) {
             </div>
             <div className="flex flex-col">
               <span className="text-slate-500 uppercase text-[10px]">Close</span>
-              <span className={candleData.close >= candleData.open ? "text-emerald-400 font-bold" : "text-rose-400 font-bold"}>
+              {/* Uses the VSA color if available, otherwise defaults to Green/Red */}
+              <span style={{ color: candleData.color || (candleData.close >= candleData.open ? '#22c55e' : '#ef4444') }} className="font-bold">
                 {candleData.close?.toFixed(5)}
               </span>
+            </div>
+             <div className="flex flex-col border-l border-slate-600 pl-2">
+              <span className="text-slate-500 uppercase text-[10px]">Vol</span>
+              <span className="text-slate-300">{candleData.tick_volume}</span>
             </div>
           </>
         )}
