@@ -1,16 +1,38 @@
-# React + Vite
+```markdown
+# ⚛️ TradeBot PRO - React Dashboard
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The user interface for TradeBot PRO. It provides a high-performance trading dashboard using financial charting tools and a responsive control panel.
 
-Currently, two official plugins are available:
+## 🚀 Features
+* **Interactive Charts:** Built with Lightweight Charts for smooth performance and real-time updates.
+* **Real-time VSA Highlighting:** Visual identification of high-volume candles directly on the chart.
+* **Symbol Selector:** Quick asset switching with automated data refetching.
+* **Action Panel:** Integrated controls for bot management (Start/Stop) and manual Telegram alerts.
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+## 🛠️ Installation
 
-## React Compiler
+1. **Install Dependencies:**
+   ```bash
+   npm install
+Environment Configuration:
+Ensure .env.local contains your Backend URL:
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Ini, TOML
 
-## Expanding the ESLint configuration
+VITE_API_URL=[http://127.0.0.1:8000/api](http://127.0.0.1:8000/api)
+Start Development Server:
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+Bash
+
+npm run dev
+📊 VSA Coloring Guide
+Standard Candles: Normal market activity (Green/Red).
+
+Neon Green: High Bullish Volume (Buying Pressure detected).
+
+Neon Red: High Bearish Volume (Selling Pressure detected).
+
+📁 Project Structure
+src/components/CandleChart.jsx: Core charting logic and VSA rendering.
+
+src/App.jsx: Main layout, action handlers, and global state management.
