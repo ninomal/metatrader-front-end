@@ -1,12 +1,15 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { createChart, ColorType, CandlestickSeries } from 'lightweight-charts';
+import { createChart, ColorType, CandlestickSeries, LineSeries } from 'lightweight-charts';
 
 export function CandleChart({ symbol }) {
   const chartContainerRef = useRef();
   const chartRef = useRef(null);
   const seriesRef = useRef(null);
+  const smaSeriesRef = useRef(null); // Reference for the SMA line
+
   const [loading, setLoading] = useState(true);
   const [candleData, setCandleData] = useState(null);
+  const [showSMA, setShowSMA] = useState(true); // Toggle State for SMA
 
   const API_URL = import.meta.env.VITE_API_URL || "http://127.0.0.1:8000/api";
 
@@ -14,7 +17,6 @@ export function CandleChart({ symbol }) {
   useEffect(() => {
     if (chartRef.current) return;
 
-    // Create Chart Instance
     const chart = createChart(chartContainerRef.current, {
       layout: {
         background: { type: ColorType.Solid, color: '#0f172a' }, // Slate-900
@@ -38,8 +40,6 @@ export function CandleChart({ symbol }) {
     chartRef.current = chart;
 
     // 2. Add Candlestick Series
-    // CRITICAL: We enable borders and wicks but DO NOT set upColor/downColor here.
-    // This allows the chart to use the individual colors sent by the Python Backend.
     const newSeries = chart.addSeries(CandlestickSeries, {
       borderVisible: true,
       wickVisible: true,
@@ -49,15 +49,25 @@ export function CandleChart({ symbol }) {
         minMove: 0.00001,
       },
     });
-    
     seriesRef.current = newSeries;
+
+    // 3. Add SMA Line Series
+    const smaSeries = chart.addSeries(LineSeries, {
+      color: '#22d3ee', // Cyan-400
+      lineWidth: 2,
+      priceLineVisible: false,
+      lastValueVisible: false,
+    });
+    smaSeriesRef.current = smaSeries;
 
     // Tooltip Logic
     chart.subscribeCrosshairMove((param) => {
       if (param.time) {
         const data = param.seriesData.get(newSeries);
+        const smaValue = param.seriesData.get(smaSeries);
         if (data) {
-          setCandleData(data);
+          // Merge SMA value into the tooltip data
+          setCandleData({ ...data, sma: smaValue?.value });
         }
       }
     });
@@ -79,31 +89,35 @@ export function CandleChart({ symbol }) {
     };
   }, []);
 
-  // 3. Fetch Data (Runs when 'symbol' changes)
+  // 4. Fetch Data (Runs when 'symbol' changes)
   useEffect(() => {
-    if (!seriesRef.current) return;
+    if (!seriesRef.current || !smaSeriesRef.current) return;
 
     const fetchData = async () => {
       setLoading(true);
-      // Clear data to give visual feedback of loading
       seriesRef.current.setData([]); 
+      smaSeriesRef.current.setData([]);
       setCandleData(null);
 
       try {
         const query = symbol ? `?symbol=${symbol}` : '';
-        const response = await fetch(`${API_URL}/chart-data${query}`);
+        // Added cache buster (_t) to ensure fresh data
+        const response = await fetch(`${API_URL}/chart-data${query}&_t=${Date.now()}`);
         const data = await response.json();
         
-        // DEBUG: Check console to see if colors are arriving
         if (data && data.length > 0) {
-          console.log(`📊 Loaded ${data.length} candles for ${symbol}`);
-          console.log("🎨 Sample Candle Data:", data[data.length - 1]); 
-
+          // Set Candlestick Data
           seriesRef.current.setData(data);
+
+          // Filter and Set SMA Data
+          const smaData = data
+            .filter(d => d.sma !== null && d.sma !== undefined)
+            .map(d => ({ time: d.time, value: d.sma }));
+          
+          smaSeriesRef.current.setData(smaData);
+
           chartRef.current.timeScale().fitContent();
           setCandleData(data[data.length - 1]);
-        } else {
-          console.warn(`⚠️ No data found for symbol: ${symbol}`);
         }
       } catch (error) {
         console.error("❌ Error fetching chart data:", error);
@@ -113,12 +127,34 @@ export function CandleChart({ symbol }) {
     };
 
     fetchData();
-
   }, [symbol]);
+
+  // 5. Toggle SMA Visibility
+  useEffect(() => {
+    if (smaSeriesRef.current) {
+      smaSeriesRef.current.applyOptions({
+        visible: showSMA,
+      });
+    }
+  }, [showSMA]);
 
   return (
     <div className="w-full h-full relative group p-4">
       
+      {/* Indicator Controls */}
+      <div className="absolute top-6 right-6 z-30 flex gap-2">
+        <button 
+          onClick={() => setShowSMA(!showSMA)}
+          className={`px-3 py-1 rounded text-[10px] font-bold transition-all border ${
+            showSMA 
+            ? "bg-cyan-500/20 border-cyan-500 text-cyan-400" 
+            : "bg-slate-800 border-slate-700 text-slate-500"
+          }`}
+        >
+          SMA (20) {showSMA ? "ON" : "OFF"}
+        </button>
+      </div>
+
       {/* Floating Tooltip */}
       <div className="absolute top-6 left-6 z-20 bg-slate-800/90 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
         {!candleData ? (
@@ -139,12 +175,17 @@ export function CandleChart({ symbol }) {
             </div>
             <div className="flex flex-col">
               <span className="text-slate-500 uppercase text-[10px]">Close</span>
-              {/* Uses the VSA color if available, otherwise defaults to Green/Red */}
               <span style={{ color: candleData.color || (candleData.close >= candleData.open ? '#22c55e' : '#ef4444') }} className="font-bold">
                 {candleData.close?.toFixed(5)}
               </span>
             </div>
-             <div className="flex flex-col border-l border-slate-600 pl-2">
+            {showSMA && candleData.sma && (
+               <div className="flex flex-col border-l border-slate-600 pl-2">
+                <span className="text-cyan-500 uppercase text-[10px]">SMA</span>
+                <span className="text-cyan-400">{candleData.sma.toFixed(5)}</span>
+              </div>
+            )}
+            <div className="flex flex-col border-l border-slate-600 pl-2">
               <span className="text-slate-500 uppercase text-[10px]">Vol</span>
               <span className="text-slate-300">{candleData.tick_volume}</span>
             </div>
