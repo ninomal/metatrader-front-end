@@ -100,10 +100,15 @@ export function CandleChart({ symbol }) {
       setCandleData(null);
 
       try {
-        const query = symbol ? `?symbol=${symbol}` : '';
-        // Added cache buster (_t) to ensure fresh data
-        const response = await fetch(`${API_URL}/chart-data${query}&_t=${Date.now()}`);
+        // --- CÓDIGO MELHORADO AQUI ---
+        // Cria os parâmetros de forma segura para evitar erros na URL
+        const queryParams = new URLSearchParams();
+        if (symbol) queryParams.append('symbol', symbol);
+        queryParams.append('_t', Date.now()); // Anti-cache
+
+        const response = await fetch(`${API_URL}/chart-data?${queryParams.toString()}`);
         const data = await response.json();
+        // ------------------------------
         
         if (data && data.length > 0) {
           // Set Candlestick Data
@@ -156,7 +161,7 @@ export function CandleChart({ symbol }) {
       </div>
 
       {/* Floating Tooltip */}
-      <div className="absolute top-6 left-6 z-20 bg-slate-800/90 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
+      <div className="absolute top-6 left-6 z-10 bg-slate-800/90 backdrop-blur-sm border border-slate-700 p-3 rounded-lg shadow-lg pointer-events-none flex gap-4 text-xs font-mono min-h-[50px]">
         {!candleData ? (
           <span className="text-slate-400 my-auto">{loading ? `Loading ${symbol}...` : "No Data"}</span>
         ) : (
